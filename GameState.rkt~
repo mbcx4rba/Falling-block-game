@@ -304,45 +304,44 @@
         [mask-2darray (get-mask tetramino)])
   (make-tetramino colour (rotate-2darray mask-2darray))))
 
-(define starting-loc (make-vector 0 0))
-
-(define (update-game world-state a-key)
+;; Just a quick hacky test version of the game
+(define (test-game)
+  (define starting-loc (make-vector 0 5))
   (define test-collision (const #f)) ;; debug
   (define (update-loc move loc)
     (cond [(eq? move 'l) (add-vector loc (make-vector +1 -1))]
           [(eq? move 'r) (add-vector loc (make-vector +1 +1))]
           [(eq? move 'd) (add-vector loc (make-vector +2  0))]
           [else (add-vector loc (make-vector +1 0))]))
-    
-    (let* ([player-move (cond [(key=? a-key "left")  'l]
-                              [(key=? a-key "right") 'r]
-                              [(key=? a-key "up")    'u]
-                              [(key=? a-key "down")  'd]
-                              [(key=? a-key " ") 'p]
-                              [else 'w])]
-           [rotation? (eq? player-move 'u)]
-           [tetramino-in-play (first  world-state)]
-           [loc               (second world-state)]
-           [board             (third  world-state)]
+  (define (rotation? move)
+    (eq? move 'u))
+  (define (update-game tetramino-in-play loc board)
+    (let* ([player-move (string->symbol (read-line (current-input-port) 'any))]
            [place? (eq? player-move 'p)]
            [collision? (or place?
                            (test-collision player-move loc board))]
            [new-board (if collision?
-                        (place-tetramino loc
-                                         tetramino-in-play
-                                         board)
-                        board)]
-         [new-loc (if collision?
-                      starting-loc
-                      (update-loc player-move loc))]
-         [new-tetramino (cond [collision? (get-tetramino (random-choice tetraminos))]
-                              [rotation?  (rotate-tetramino tetramino-in-play)]
-                              [else tetramino-in-play])])
-    (list new-tetramino
-          new-loc
-          new-board)))
-
-
+                          (place-tetramino loc
+                                           tetramino-in-play
+                                           board)
+                          board)]
+           [new-loc (if collision?
+                        starting-loc
+                        (update-loc player-move loc))]
+           [new-tetramino (cond [collision? (get-tetramino (random-choice tetraminos))]
+                                [(rotation? player-move) (rotate-tetramino tetramino-in-play)]
+                                [else tetramino-in-play])])
+      (begin
+        (display (board->image (place-tetramino new-loc
+                                       new-tetramino
+                                       new-board)))
+        (newline)
+        (update-game new-tetramino
+                     new-loc
+                     new-board))))
+  
+  (update-game (get-tetramino (random-choice tetraminos)) starting-loc empty-board))
+    
 
 (define grid-size 25)
 
@@ -361,10 +360,8 @@
     (if (is-empty? cell)
         scene ;; nothing to do
         (let* ([indices (get-tag cell)]
-               [x-coord (+ (/ grid-size 2)
-                           (* (get-x indices) grid-size))]
-               [y-coord (+ (/ grid-size 2)
-                           (* (get-y indices) grid-size))]
+               [x-coord (* (get-x indices) grid-size)]
+               [y-coord (* (get-y indices) grid-size)]
                [colour  (symbol->string (get-enum-value cell))])
           (place-image (square grid-size "solid" colour)
                y-coord
@@ -373,17 +370,12 @@
     ;; need to use a fold here
   (foldl draw-cell canvas (flat1 (2darray->list board)))))
 
-(define (draw-game game-state)
-  (let ([tetramino-in-play (first  game-state)]
-        [loc               (second game-state)]
-        [board             (third  game-state)])
-  (board->image (place-tetramino loc
-                                 tetramino-in-play
-                                 board))))
 
-
-(big-bang (list (get-tetramino (random-choice tetraminos))
-                starting-loc
-                empty-board) ;<-- initial state
-          (to-draw draw-game) ;<-- redraws the world
-          (on-key update-game)) ;<-- process the event of key press
+(define (change w a-key)
+  (cond ;w - is the previous worldState, V here we change it
+    [(key=? a-key "left")  (cons (sub1 (car w)) (cdr w))];and 
+    [(key=? a-key "right") (cons (add1 (car w)) (cdr w))];return 
+    [(= (string-length a-key) 1) w] ;<-- this line is excess
+    [(key=? a-key "up")    (cons (car w) (sub1 (cdr w)))]
+    [(key=? a-key "down")  (cons (car w) (add1 (cdr w)))]
+    [else w])) ;<-- If the key of no interest, just return the previous WorldState
