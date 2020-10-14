@@ -295,7 +295,7 @@
 ;; Choose random element from list
 ;; [a] -> a
 (define (random-choice mylist)
-  (list-ref mylist (random 0 (- (length mylist) 1))))
+  (list-ref mylist (random 0 (length mylist))))
 
 ;; Rotates a tetramino 90 degrees
 ;; tetramino -> tetramino
@@ -382,8 +382,8 @@
                                  board))))
 
 
-(big-bang (list (get-tetramino (random-choice tetraminos))
+(big-bang (list (get-tetramino (random-choice tetraminos)) ;; maybe add some abstraction here for game state
                 starting-loc
-                empty-board) ;<-- initial state
-          (to-draw draw-game) ;<-- redraws the world
-          (on-key update-game)) ;<-- process the event of key press
+                empty-board)    ; <-- initial state
+          (to-draw draw-game)   ; <-- redraws the world
+          (on-key update-game)) ; <-- process the event of key press
