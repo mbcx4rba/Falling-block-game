@@ -326,10 +326,10 @@
 (define (update-game world-state a-key)
   (define test-collision (const #f)) ;; debug
   (define (update-loc move loc)
-    (cond [(eq? move 'l) (add-vector loc (make-vector +1 -1))]
-          [(eq? move 'r) (add-vector loc (make-vector +1 +1))]
-          [(eq? move 'd) (add-vector loc (make-vector +2  0))]
-          [else (add-vector loc (make-vector +1 0))]))
+    (cond [(eq? move 'l) (add-vector loc (make-vector  0 -1))]
+          [(eq? move 'r) (add-vector loc (make-vector  0 +1))]
+          [(eq? move 'd) (add-vector loc (make-vector +1  0))]
+          [else loc]))
     
     (let* ([player-move (cond [(key=? a-key "left")  'l]
                               [(key=? a-key "right") 'r]
@@ -386,10 +386,12 @@
                    #t
                    (map-2d
                     (lambda (cell)
-                      (let ([cell-loc (add-vector loc
-                                                  (get-enum-2d-index cell))])
-                        (is-empty? (2darray-vector-ref board cell-loc))))
-                   
+                      (let (; check whether the tetramino actually occupies this cell
+                            [occupied? (get-enum-2d-value cell)]
+                            ; and get the location of the cell on the board
+                            [cell-loc (add-vector loc (get-enum-2d-index cell))])
+                        (or (not occupied?)
+                            (is-empty? (2darray-vector-ref board cell-loc)))))
                    (enum-2d (get-mask tetramino)))))])
       (and (not in-floor?)
            (not in-walls?)
