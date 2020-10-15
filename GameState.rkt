@@ -2,6 +2,19 @@
 (require 2htdp/image)
 (require 2htdp/universe)
 
+; global constants
+
+; Int
+(define board-width 10)
+
+; Int
+(define board-height 20)
+
+; Int
+; grid size in pixels
+(define grid-size 35)
+
+
 ; (a -> Bool) -> [a] -> Bool
 (define (all? fn my-list)
   (foldl (lambda (x bs) (and bs (fn x))) #t my-list))
@@ -25,12 +38,6 @@
   (car (get-tag enum-item)))
 
 (define get-enum-value cdr)
-
-; Int
-(define board-width 10)
-
-; Int
-(define board-height 20)
 
 ; Int -> a -> [a]
 (define (replicate n a)
@@ -334,41 +341,44 @@
 ; game-state -> keypress -> game-state
 (define (update-game game-state a-key)
   ; updates the game-state when a key is pressed
-  (define test-collision (const #f)) ; debug
-  (define (update-loc move loc)
-    (cond [(eq? move 'l) (add-vector loc (make-vector  0 -1))]
-          [(eq? move 'r) (add-vector loc (make-vector  0 +1))]
-          [(eq? move 'd) (add-vector loc (make-vector +1  0))]
-          [else loc]))
-    
-    (let* ([player-move (cond [(key=? a-key "left")  'l]
-                              [(key=? a-key "right") 'r]
-                              [(key=? a-key "up")    'u]
-                              [(key=? a-key "down")  'd]
-                              [(key=? a-key " ") 'p]
-                              [else 'w])]
-           [rotation? (eq? player-move 'u)]
-           [tetramino-in-play (first  game-state)]
-           [loc               (second game-state)]
-           [board             (third  game-state)]
-           [place? (eq? player-move 'p)]
-           [proposed-loc (update-loc player-move loc)]
-           [collision? (or place?
-                           (not (can-move-to? tetramino-in-play proposed-loc board)))]
-           [new-board (if collision?
+  (let* ([tetramino-in-play  (get-tetramino-in-play game-state)]
+         [loc                (get-tetramino-loc     game-state)]
+         [board              (get-board             game-state)]
+         [player-move (cond [(key=? a-key "left")  'l]
+                            [(key=? a-key "right") 'r]
+                            [(key=? a-key "up")    'u]
+                            [(key=? a-key "down")  'd]
+                            [else 'w])]
+
+         [rotation?         (eq? player-move 'u)]
+         [proposed-loc (cond [(eq? player-move 'l) (add-vector loc (make-vector  0 -1))]
+                             [(eq? player-move 'r) (add-vector loc (make-vector  0 +1))]
+                             [(eq? player-move 'd) (add-vector loc (make-vector +1  0))]
+                             [else loc])]
+
+         [proposed-tetramino (if rotation?
+                                 (rotate-tetramino tetramino-in-play)
+                                 tetramino-in-play)]
+
+         [collision? (not (can-move-to? proposed-tetramino proposed-loc board))]
+         [place?     (and (eq? player-move 'd) collision?)]
+                         
+         [new-board (if place?
                         (place-tetramino loc
                                          tetramino-in-play
                                          board)
                         board)]
-         [new-loc (if collision?
-                      starting-loc
-                      proposed-loc)]
-         [new-tetramino (cond [collision? (get-tetramino (random-choice tetraminos))]
-                              [rotation?  (rotate-tetramino tetramino-in-play)]
-                              [else tetramino-in-play])])
-    (list new-tetramino
-          new-loc
-          new-board)))
+
+         [new-loc (cond [place?     starting-loc]
+                        [collision? loc]
+                        [else proposed-loc])]
+
+         [new-tetramino (cond [place? (get-tetramino (random-choice tetraminos))]
+                              [collision? tetramino-in-play]
+                              [else proposed-tetramino])])
+    (make-game-state new-tetramino
+                     new-loc
+                     new-board)))
 
 ; tetramino -> (Int,Int) -> board -> Bool
 (define (can-move-to? tetramino loc board)
@@ -386,14 +396,18 @@
          [board-dims   (get-dimensions board)]
          [board-height (get-y board-dims)]
          [board-width  (get-x board-dims)]
-         [in-floor? (or (< tetra-min-y 0)
-                        (> tetra-max-y board-height))]
-         [in-walls? (or (< tetra-min-x 0)
-                        (> tetra-max-x board-width))]
+         [in-floor?    (or (< tetra-min-y 0)
+                           (> tetra-max-y board-height))]
+         [in-walls?    (or (< tetra-min-x 0)
+                           (> tetra-max-x board-width))]
          [overlaps-non-empty?
-          (lambda ()  (fold-2d (lambda (x y) (and x y))
-                   #t
-                   (map-2d
+            (and
+              (not in-floor?)
+              (not in-walls?)
+                (fold-2d
+                  (lambda (x y) (and x y))
+                  #t
+                  (map-2d
                     (lambda (cell)
                       (let (; check whether the tetramino actually occupies this cell
                             [occupied? (get-enum-2d-value cell)]
@@ -401,23 +415,16 @@
                             [cell-loc (add-vector loc (get-enum-2d-index cell))])
                         (or (not occupied?)
                             (is-empty? (2darray-vector-ref board cell-loc)))))
-                   (enum-2d (get-mask tetramino)))))])
-      (and (not in-floor?)
-           (not in-walls?)
-           (overlaps-non-empty?))))
-
-; int
-(define grid-size 25)
+                  (enum-2d (get-mask tetramino)))))])
+           overlaps-non-empty?))
 
 ; board -> image
 (define (board->image board)
-  ; cell -> char
-  (let* (; grid size in pixels
-        [grid-size 25]
-        [image-h (* board-height grid-size)]
-        [image-w (* board-width  grid-size)]
-        [canvas (empty-scene image-w image-h)])
+  (let* ([image-h (* board-height grid-size)]
+         [image-w (* board-width  grid-size)]
+         [canvas (empty-scene image-w image-h)])
   
+  ; cell -> image -> image
   (define (draw-cell cell scene)
     (if (is-empty? cell)
         scene ; nothing to do
@@ -434,6 +441,7 @@
   (fold-2d draw-cell canvas board)))
 
 ; game-state = [tetramino, vector, board]
+; tetramino -> vector -> board -> game-state
 (define (make-game-state tetramino-in-play tetramino-loc board)
   (list tetramino-in-play tetramino-loc board))
 
