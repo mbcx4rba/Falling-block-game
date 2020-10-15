@@ -2,11 +2,11 @@
 (require 2htdp/image)
 (require 2htdp/universe)
 
-
-;; (a -> Bool) -> [a] -> Bool
+; (a -> Bool) -> [a] -> Bool
 (define (all? fn my-list)
   (foldl (lambda (x bs) (and bs (fn x))) #t my-list))
 
+; data -> tagged data
 (define (enumerate-tag tag xs)
   (define (range start stop)
   (if (> start stop)
@@ -16,59 +16,61 @@
   (zip
    (map (curry cons tag) (range 0 (- (length xs) 1))) xs))
 
+; tagged data -> Int
 (define (get-index enum-item)
   (cdr (get-tag enum-item)))
 
+; tagged data -> Symbol
 (define (get-enum-tag enum-item)
   (car (get-tag enum-item)))
 
 (define get-enum-value cdr)
 
-;; Int
+; Int
 (define board-width 10)
 
-;; Int
+; Int
 (define board-height 20)
 
-;; Int -> a -> [a]
+; Int -> a -> [a]
 (define (replicate n a)
   (if (= n 0)
       '()
       (cons a (replicate (- n 1) a))))
 
-;; symbol -> a -> (symbol, a)
+; symbol -> a -> (symbol, a)
 (define (tag-as tag item)
   (cons tag item))
 
-;; forall a. (symbol, a) -> symbol
+; forall a. (symbol, a) -> symbol
 (define get-tag car)
 
-;; forall a. (symbol, a) -> a
+; forall a. (symbol, a) -> a
 (define get-value cdr)
 
-;; cell -> symbol
+; cell -> symbol
 (define cell-colour get-value)
 
-;; number -> number -> vector 
+; number -> number -> vector 
 (define (make-vector x y)
   (tag-as 'Vector (cons x y)))
 
-;; 2darray -> list
+; 2darray -> list
 (define (2darray->list 2darray)
  (if (is-2darray? 2darray)
      (cdr (get-value 2darray))
      (raise-type-error '2darray->string "2darray" 2darray)))
 
-;; returns an empty n x m 2darray0
-;; Int -> Int -> 2darray
+; Int -> Int -> 2darray
 (define (empty-2darray n m)
+  ; returns an empty n x m 2darray
   (make-2darray (replicate n (replicate m 'Empty))))
 
-;; cell / row / 2darray /tetramino -> bool 
+; tagged data -> bool 
 (define (is-2darray? 2darray)
   (eq? (get-tag 2darray) '2darray))
 
-;; [[a]] -> 2darray a 
+; [[a]] -> 2darray a 
 (define (make-2darray contents)
   (let ((n-rows (length contents))
         (n-cols (length (car contents)))
@@ -80,9 +82,9 @@
                                "first row" n-cols
                                "other rows" (cdr row-lengths)))))
 
-;; enum-2d takes a 2darray and with each item pairs to it a tuple with its matrix indices
-;; 2darray a -> 2darray ((Int,Int), a)
+; 2darray a -> 2darray ((Int,Int), a)
 (define (enum-2d 2darray)
+  ; enum-2d takes a 2darray and with each item pairs to it a tuple with its matrix indices
   (let* ([as-list   (2darray->list 2darray)]
          [with-cols (map (curry enumerate-tag 'col) as-list)]
          [with-rows (enumerate-tag 'row with-cols)])
@@ -97,62 +99,62 @@
            (get-enum-value row))))
       with-rows))))
 
-;; (vector, a) -> a
+; (vector, a) -> a
 (define get-enum-2d-value get-enum-value)
 
-;; (vector, a) -> vector
+; (vector, a) -> vector
 (define get-enum-2d-index car)
 
-;; map-2d maps a function across a 2darray
-;; 2darray -> 2darray
+; 2darray -> 2darray
 (define (map-2d fn 2darray)
+  ; map-2d maps a function across a 2darray
   (let ([as-list   (2darray->list 2darray)])
     (make-2darray (map (curry map fn) as-list))))
 
-;; fold-2d folds a 2darray
+; fold-2d folds a 2darray
 (define (fold-2d proc init 2darray)
-  (define flat1 ;; flatten a list of lists to depth-1 only
+  (define flat1 ; flatten a list of lists to depth-1 only
     (curry foldl append '()))
   (foldl proc init (flat1 (2darray->list 2darray))))
 
-;; board (enumerated 2darray)
+; board (enumerated 2darray)
 (define empty-board
   (enum-2d (empty-2darray board-height board-width)))
 
-;; 2darray a -> (Int, Int)
+; 2darray a -> (Int, Int)
 (define (get-dimensions x)
   (cond [(is-2darray? x) (car (get-value x))]
         [(is-tetramino? x) (get-dimensions (get-mask x))]
         [else (raise-type-error 'get-dimensions "2darray/tetramino" x)]))
 
-;; cell / row -> bool
+; cell / row -> bool
 (define (is-row? row)
   (eq? (get-enum-tag row) 'row))
 
-;; board -> [row]
+; board -> [row]
 (define get-rows cddr)
 
-;; row -> [cell]
+; row -> [cell]
 (define get-cells identity)
 
-;; cell -> bool
+; cell -> bool
 (define (is-empty? cell)
   (eq? 'Empty
        (get-enum-value cell)))
 
-;; board -> string
+; board -> string
 (define (board->string board)
-  ;; cell -> char
+  ; cell -> char
   (define (cell->char cell)
     (cond [(is-empty? cell) #\_]
           [else #\#]))
   (string-join (map list->string (2darray->list (map-2d cell->char board))) "\n"))
 
-;; board -> void (with side effect)
+; board -> void (with side effect)
 (define (show-board board)
   (display (board->string board)))
 
-;; 2darray a > Int -> Int -> a
+; 2darray a > Int -> Int -> a
 (define (2darray-ref 2darray i j)
   (let* ([dims    (get-dimensions 2darray)]
          [i-max (- (get-x dims) 1)]
@@ -162,53 +164,55 @@
           [else (list-ref (list-ref (cddr 2darray) i) j)]
           )))
 
+; 2darray a -> vector -> a
 (define (2darray-vector-ref 2darray v)
   (let ([i (get-x v)]
         [j (get-y v)])
     (2darray-ref 2darray i j)))
 
-;; tetraminio -> 
+; tetraminio -> Bool
 (define (tetramino-ref tetramino i j)
   (2darray-ref (get-mask tetramino) i j))
-        
+
+; 2darray -> 2darray
 (define (bool-mask symbols)
   (define (replacer symbol)
     (cond [(eq? symbol 'X) #t]
           [(eq? symbol '_) #f]))
   (make-2darray (map (curry map replacer) symbols)))
 
-;; colour -> [[symbol]] -> tetramino
+; colour -> [[symbol]] -> tetramino
 (define (make-tetramino colour 2darray-mask)
 
   (tag-as 'tetramino
           (cons colour 2darray-mask)))
 
-;; tetramino -> [[symbol]]
+; tetramino -> [[symbol]]
 (define (get-mask tetramino)
   (if (is-tetramino? tetramino)
       (cdr (get-value tetramino))
       (raise-type-error 'get-mask "tetramino" tetramino)))
 
-;; tetramino -> colour
+; tetramino -> colour
 (define (get-colour tetramino)
   (if (is-tetramino? tetramino)
       (car (get-value tetramino))
       (raise-type-error 'get-colour "tetramino" tetramino)))
 
-;; tetramino/cell/row -> bool
+; tetramino/cell/row -> bool
 (define (is-tetramino? tetramino)
   (eq? (get-tag tetramino) 'tetramino))
 
-;; tetramino -> string
+; tetramino -> string
 (define (tetramino->string tetramino)
   (if (is-tetramino? tetramino)
       (get-mask tetramino)
       (raise-type-error 'tetramino->string "tetramino" tetramino)))
   
-;; [symbol]
+; [symbol]
 (define tetraminos '(O L J S Z T I))
 
-;; symbol -> tetramino
+; symbol -> tetramino
 (define (get-tetramino name)
   (define O (make-tetramino 'Yellow (bool-mask '((X X)
                                                  (X X)))))
@@ -216,29 +220,29 @@
   (define L (make-tetramino 'Orange (bool-mask '((_ _ X)
                                                  (X X X)))))
   
-  (define J (make-tetramino 'Blue (bool-mask '((X X X)
-                                               (_ _ X)))))
+  (define J (make-tetramino 'Blue   (bool-mask '((X X X)
+                                                (_ _ X)))))
   
-  (define S (make-tetramino 'Green (bool-mask '((_ X X)
+  (define S (make-tetramino 'Green  (bool-mask '((_ X X)
                                                 (X X _)))))
 
-  (define Z (make-tetramino 'Red (bool-mask '((X X _)
-                                              (_ X X)))))
+  (define Z (make-tetramino 'Red    (bool-mask '((X X _)
+                                                (_ X X)))))
   
   (define T (make-tetramino 'Purple (bool-mask '((X X X)
                                                  (_ X _)))))
   
-  (define I (make-tetramino 'Cyan (bool-mask '((X X X X)))))
+  (define I (make-tetramino 'Cyan   (bool-mask '((X X X X)))))
   
-  (cond ((eq? name 'O) O)   ;; square
-        ((eq? name 'L) L)   ;; L
-        ((eq? name 'J) J)   ;; reverse L
-        ((eq? name 'S) S)   ;; zig zag
-        ((eq? name 'Z) Z)   ;; zag zig
-        ((eq? name 'T) T)   ;; T piece
-        ((eq? name 'I) I))) ;; long straight piece
+  (cond ((eq? name 'O) O)   ; square
+        ((eq? name 'L) L)   ; L
+        ((eq? name 'J) J)   ; reverse L
+        ((eq? name 'S) S)   ; zig zag
+        ((eq? name 'Z) Z)   ; zag zig
+        ((eq? name 'T) T)   ; T piece
+        ((eq? name 'I) I))) ; long straight piece
 
-;; vector -> vector -> vector
+; vector -> vector -> vector
 (define (add-vector v1 v2)
   (let ([x1 (get-x v1)]
         [y1 (get-y v1)]
@@ -246,28 +250,31 @@
         [y2 (get-y v2)])
     (make-vector (+ x1 x2) (+ y1 y2))))
     
+; tagged data -> Bool
 (define (is-vector? v)
   (eq? (get-tag v) 'Vector))
 
+; vector -> number
 (define (get-x v)
   (if (is-vector? v)
       (car (get-value v))
       (raise-type-error 'get-x "Vector" v)))
 
+; vector -> number
 (define (get-y v)
   (if (is-vector? v)
       (cdr (get-value v))
       (raise-type-error 'get-y "Vector" v)))
 
-;; place-tetramino :: (int,int) -> tetramino -> board -> board
-;; no checking if we can place here, just place the piece
-;; loc should be a vector consisting of two ints in the following coordinate system
-;; +----> (., y)
-;; |
-;; |
-;; V (x,.) where 0,0 is the top left of the board
-;; tetraminos are arrays with a certain extent and rotation
+; place-tetramino :: (int,int) -> tetramino -> board -> board
 (define (place-tetramino loc tetramino board)
+  ; no checking if we can place here, just place the piece
+  ; loc should be a vector consisting of two ints in the following coordinate system
+  ; +----> (., y)
+  ; |
+  ; |
+  ; V (x,.) where 0,0 is the top left of the board
+  ; tetraminos are arrays with a certain extent and rotation
   (define (make-cell loc colour)
     (cons loc colour))
   (define (in-range? min max x)
@@ -288,15 +295,15 @@
                          (tetramino-ref tetramino
                                         (- i i-min)
                                         (- j j-min)))
-                    ;; cell occupied by tetramino in play, so fill the cell
+                    ; cell occupied by tetramino in play, so fill the cell
                     (make-cell loc new-colour)
-                    ;; cell not occupied by tetramino in play, so leave unchanged
+                    ; cell not occupied by tetramino in play, so leave unchanged
                     cell)))
             board)))
-;; Rotates a 2darray 90 degrees
-;; 2darray -> 2darray
+
+; 2darray -> 2darray
 (define (rotate-2darray 2darray)
-  ;; the rotated matrix has
+  ; Rotates a 2darray 90 degrees
   (let* ([old-dims (get-dimensions 2darray)]
          [n        (get-y old-dims)]
          [m        (get-x old-dims)]
@@ -309,22 +316,25 @@
          (2darray-ref  2darray (- m j 1) i)))
      blank)))
 
-;; Choose random element from list
-;; [a] -> a
+; [a] -> a
 (define (random-choice mylist)
+  ; Choose random element from list
   (list-ref mylist (random 0 (length mylist))))
 
-;; Rotates a tetramino 90 degrees
-;; tetramino -> tetramino
+; tetramino -> tetramino
 (define (rotate-tetramino tetramino)
+  ; Rotates a tetramino 90 degrees
   (let ([colour       (get-colour tetramino)]
         [mask-2darray (get-mask tetramino)])
   (make-tetramino colour (rotate-2darray mask-2darray))))
 
+; vector
 (define starting-loc (make-vector 0 5))
 
-(define (update-game world-state a-key)
-  (define test-collision (const #f)) ;; debug
+; game-state -> keypress -> game-state
+(define (update-game game-state a-key)
+  ; updates the game-state when a key is pressed
+  (define test-collision (const #f)) ; debug
   (define (update-loc move loc)
     (cond [(eq? move 'l) (add-vector loc (make-vector +1 -1))]
           [(eq? move 'r) (add-vector loc (make-vector +1 +1))]
@@ -338,9 +348,9 @@
                               [(key=? a-key " ") 'p]
                               [else 'w])]
            [rotation? (eq? player-move 'u)]
-           [tetramino-in-play (first  world-state)]
-           [loc               (second world-state)]
-           [board             (third  world-state)]
+           [tetramino-in-play (first  game-state)]
+           [loc               (second game-state)]
+           [board             (third  game-state)]
            [place? (eq? player-move 'p)]
            [proposed-loc (update-loc player-move loc)]
            [collision? (or place?
@@ -360,13 +370,12 @@
           new-loc
           new-board)))
 
-;; tetramino -> (Int,Int) -> board -> Bool
-;; Returns false if a tetramino collides with either
-;;    1. Another tetramino
-;;    2. The "floor" of the board
-;;    3. The "walls" of the board
-
+; tetramino -> (Int,Int) -> board -> Bool
 (define (can-move-to? tetramino loc board)
+  ; Returns false if a tetramino collides with either
+  ;    1. Another tetramino
+  ;    2. The "floor" of the board
+  ;    3. The "walls" of the board
   (let* ([tetra-dims   (get-dimensions tetramino)]
          [tetra-height (get-y tetra-dims)]
          [tetra-width  (get-x tetra-dims)]
@@ -394,17 +403,14 @@
       (and (not in-floor?)
            (not in-walls?)
            (overlaps-non-empty?))))
-    
-;    (not (or (in-floor?) (in-walls?) (overlaps-non-empty?))))) ;; De Morgan's
 
-
-
+; int
 (define grid-size 25)
 
-;; board -> image
+; board -> image
 (define (board->image board)
-  ;; cell -> char
-  (let* (;; grid size in pixels
+  ; cell -> char
+  (let* (; grid size in pixels
         [grid-size 25]
         [image-h (* board-height grid-size)]
         [image-w (* board-width  grid-size)]
@@ -412,7 +418,7 @@
   
   (define (draw-cell cell scene)
     (if (is-empty? cell)
-        scene ;; nothing to do
+        scene ; nothing to do
         (let* ([indices (get-tag cell)]
                [x-coord (+ (/ grid-size 2)
                            (* (get-x indices) grid-size))]
@@ -425,6 +431,20 @@
                scene))))
   (fold-2d draw-cell canvas board)))
 
+; game-state = [tetramino, vector, board]
+(define (make-game-state tetramino-in-play tetramino-loc board)
+  (list tetramino-in-play tetramino-loc board))
+
+; game-state -> tetramino
+(define get-tetramino-in-play first)
+
+; game-state -> vector
+(define get-tetramino-loc second)
+
+; game-state -> board
+(define get-board third)
+
+; game-state -> image
 (define (draw-game game-state)
   (let ([tetramino-in-play (first  game-state)]
         [loc               (second game-state)]
@@ -434,8 +454,8 @@
                                  board))))
 
 
-(big-bang (list (get-tetramino (random-choice tetraminos)) ;; maybe add some abstraction here for game state
-                starting-loc
-                empty-board)    ; <-- initial state
-          (to-draw draw-game)   ; <-- redraws the world
-          (on-key update-game)) ; <-- process the event of key press
+(big-bang (make-game-state (get-tetramino (random-choice tetraminos)) ; initial state
+                           starting-loc
+                           empty-board)
+          (to-draw draw-game)    ; redraws the world
+          (on-key update-game))  ; process the event of key press
