@@ -1,6 +1,7 @@
 #lang racket
 (require 2htdp/image)
 (require 2htdp/universe)
+(require rsound)
 
 ; global constants
 
@@ -10,9 +11,25 @@
 ; Int
 (define board-height 20)
 
+; rsound
+(define blop-sound
+  ; Sound by Mark DiAngelo and released under 
+  ; Creative Commons Attribution 3.0 license: 
+  ; https://creativecommons.org/licenses/by/3.0/#
+  ;
+  ; from https://soundbible.com/2067-Blop.html
+  (rs-read "blop.wav"))
+
+; rsound -> void
+(define (play-sound sound)
+  ; plays sound effect as a side-effect
+  (begin
+   (play blop-sound)
+   (void)))
+
 ; Int
 ; grid size in pixels
-(define grid-size 35)
+(define grid-size 30)
 
 
 ; (a -> Bool) -> [a] -> Bool
@@ -358,11 +375,12 @@
 
          [collision? (not (can-move-to? proposed-tetramino proposed-loc board))]
          [place?     (and (eq? player-move 'd) collision?)]
-                         
          [new-board (if place?
-                        (car (clear-full-rows (place-tetramino loc
+                        (begin
+                          (play-sound blop-sound)
+                          (car (clear-full-rows (place-tetramino loc
                                          tetramino-in-play
-                                         board)))
+                                         board))))
                         board)]
 
          [new-loc (cond [place?     starting-loc]
@@ -456,13 +474,6 @@
     ; remove rows between i-min and i-max
     (define (move-cell index-vector cell)
       (make-cell index-vector (get-enum-2d-value cell)))
-    (begin (display "i-min: ")
-           (display i-min)
-           (newline)
-           (display "i-max: ")
-           (display i-max)
-           (newline)
-           (newline)
            (let ([i-range (- i-max i-min)])
              (map-2d (lambda (cell)
                        (let* ([indices (get-enum-2d-index cell)]
@@ -474,7 +485,7 @@
                                [else
                                 cell
                                 ])))
-                     board))))
+                     board)))
   ; board -> [(Int,Int)]
   (define (full-rows board)
     ; Find all filled rows on a board, return a list of tuples
@@ -545,14 +556,18 @@
                    empty-board)
   ; redraws the world
   (to-draw draw-game)    
+
+  ; ticks - block falling every so often
   (on-tick (lambda (game-state) (update-game game-state 'd))
-           0.5)
+           0.3)
+
+  (display-mode 'fullscreen)
 
   ; process the event of key press
   (on-key (lambda (game-state key)
-            (let ([player-move (cond [(key=? key "left")  'l]
-                            [(key=? key "right") 'r]
-                            [(key=? key "up")    'u]
-                            [(key=? key "down")  'd]
-                            [else 'w])])
+            (let ([player-move (cond [(or (key=? key "left")  (key=? key "a")) 'l]
+                                     [(or (key=? key "right") (key=? key "d")) 'r]
+                                     [(or (key=? key "up")    (key=? key "w")) 'u]
+                                     [(or (key=? key "down")  (key=? key "s")) 'd]
+                                     [else 'w])])
               (update-game game-state player-move)))))
