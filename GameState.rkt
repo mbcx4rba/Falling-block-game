@@ -17,7 +17,7 @@
 
 ; (a -> Bool) -> [a] -> Bool
 (define (all? fn my-list)
-  (foldl (lambda (x bs) (and bs (fn x))) #t my-list))
+  (foldl (lambda (x bs) (and bs (fn x))) #t my-list)) ; should use andmap
 
 ; data -> tagged data
 (define (enumerate-tag tag xs)
@@ -228,13 +228,13 @@
                                                  (X X X)))))
   
   (define J (make-tetramino 'Blue   (bool-mask '((X X X)
-                                                (_ _ X)))))
+                                                 (_ _ X)))))
   
   (define S (make-tetramino 'Green  (bool-mask '((_ X X)
-                                                (X X _)))))
+                                                 (X X _)))))
 
   (define Z (make-tetramino 'Red    (bool-mask '((X X _)
-                                                (_ X X)))))
+                                                 (_ X X)))))
   
   (define T (make-tetramino 'Purple (bool-mask '((X X X)
                                                  (_ X _)))))
@@ -273,6 +273,10 @@
       (cdr (get-value v))
       (raise-type-error 'get-y "Vector" v)))
 
+; vector -> colour -> cell
+(define (make-cell loc colour)
+  (cons loc colour))
+
 ; place-tetramino :: (int,int) -> tetramino -> board -> board
 (define (place-tetramino loc tetramino board)
   ; no checking if we can place here, just place the piece
@@ -282,8 +286,6 @@
   ; |
   ; V (x,.) where 0,0 is the top left of the board
   ; tetraminos are arrays with a certain extent and rotation
-  (define (make-cell loc colour)
-    (cons loc colour))
   (define (in-range? min max x)
     (and (<= min x) (> max x)))
   (let* ((new-2darray (get-mask tetramino))
@@ -339,15 +341,15 @@
 (define starting-loc (make-vector 0 5))
 
 ; game-state -> keypress -> game-state
-(define (update-game game-state a-key)
+(define (update-game game-state key)
   ; updates the game-state when a key is pressed
   (let* ([tetramino-in-play  (get-tetramino-in-play game-state)]
          [loc                (get-tetramino-loc     game-state)]
          [board              (get-board             game-state)]
-         [player-move (cond [(key=? a-key "left")  'l]
-                            [(key=? a-key "right") 'r]
-                            [(key=? a-key "up")    'u]
-                            [(key=? a-key "down")  'd]
+         [player-move (cond [(key=? key "left")  'l]
+                            [(key=? key "right") 'r]
+                            [(key=? key "up")    'u]
+                            [(key=? key "down")  'd]
                             [else 'w])]
 
          [rotation?         (eq? player-move 'u)]
@@ -364,9 +366,9 @@
          [place?     (and (eq? player-move 'd) collision?)]
                          
          [new-board (if place?
-                        (place-tetramino loc
+                        (car (clear-full-rows (place-tetramino loc
                                          tetramino-in-play
-                                         board)
+                                         board)))
                         board)]
 
          [new-loc (cond [place?     starting-loc]
@@ -401,29 +403,22 @@
          [in-walls?    (or (< tetra-min-x 0)
                            (> tetra-max-x board-width))]
          [overlaps-non-empty?
-            (and
-              (not in-floor?)
-              (not in-walls?)
-                (fold-2d
-                  (lambda (x y) (and x y))
-                  #t
-                  (map-2d
-                    (lambda (cell)
-                      (let (; check whether the tetramino actually occupies this cell
-                            [occupied? (get-enum-2d-value cell)]
-                            ; and get the location of the cell on the board
-                            [cell-loc (add-vector loc (get-enum-2d-index cell))])
-                        (or (not occupied?)
-                            (is-empty? (2darray-vector-ref board cell-loc)))))
-                  (enum-2d (get-mask tetramino)))))])
+            (and (not in-floor?)
+                 (not in-walls?)
+                 (fold-2d (lambda (x y) (and x y)) ; should use andmap
+                          #t
+                          (map-2d (lambda (cell)
+                                    (let (; check whether the tetramino actually occupies this cell
+                                          [occupied? (get-enum-2d-value cell)]
+                                          ; and get the location of the cell on the board
+                                          [cell-loc (add-vector loc (get-enum-2d-index cell))])
+                                      (or (not occupied?)
+                                          (is-empty? (2darray-vector-ref board cell-loc)))))
+                          (enum-2d (get-mask tetramino)))))])
            overlaps-non-empty?))
 
 ; board -> image
 (define (board->image board)
-  (let* ([image-h (* board-height grid-size)]
-         [image-w (* board-width  grid-size)]
-         [canvas (empty-scene image-w image-h)])
-  
   ; cell -> image -> image
   (define (draw-cell cell scene)
     (if (is-empty? cell)
@@ -435,10 +430,13 @@
                            (* (get-y indices) grid-size))]
                [colour  (symbol->string (get-enum-2d-value cell))])
           (place-image (square grid-size "solid" colour)
-               y-coord
-               x-coord
-               scene))))
-  (fold-2d draw-cell canvas board)))
+                       y-coord
+                       x-coord
+                       scene))))
+  (let* ([image-h (* board-height grid-size)]
+         [image-w (* board-width  grid-size)]
+         [canvas (empty-scene image-w image-h)])
+    (fold-2d draw-cell canvas board)))
 
 ; game-state = [tetramino, vector, board]
 ; tetramino -> vector -> board -> game-state
@@ -454,6 +452,92 @@
 ; game-state -> board
 (define get-board third)
 
+; board -> (board, Int)
+(define (clear-full-rows board)
+  ; Takes a board, then clears full rows and returns the new board
+  ; along with the points gained due to the clears
+  ; Int -> Int -> board -> board
+
+  (define (clear-rows i-min i-max board)
+    ; remove rows between i-min and i-max
+    (define (move-cell index-vector cell)
+      (make-cell index-vector (get-enum-2d-value cell)))
+    (begin (display "i-min: ")
+           (display i-min)
+           (newline)
+           (display "i-max: ")
+           (display i-max)
+           (newline)
+           (newline)
+           (let ([i-range (- i-max i-min)])
+             (map-2d (lambda (cell)
+                       (let* ([indices (get-enum-2d-index cell)]
+                              [this-i  (get-x indices)]
+                              [this-j  (get-y indices)])
+                         (cond [(<  this-i i-range) (make-cell indices 'Empty)]
+                               [(<  this-i i-max)
+                                (move-cell indices (2darray-ref board (- this-i i-range) this-j))]
+                               [else
+                                cell
+                                ])))
+                     board))))
+  ; board -> [(Int,Int)]
+  (define (full-rows board)
+    ; Find all filled rows on a board, return a list of tuples
+    ; with the indices of the first and last rows in a block of
+    ; filled rows
+    (define is-full? pair?)
+    
+
+    
+    (define (build-pair-list index row-full? xs)
+      (define (partial-pair second-index this-row-full?)
+        (if this-row-full?
+            partial-pair
+            (cons index second-index)))
+      (cond [(null? xs) (if row-full?
+                            (list partial-pair)
+                            '())]
+            [(is-full? (car xs)) (if row-full?
+                                     (cons partial-pair xs)
+                                     xs)]
+            [else (cons ((car xs) index row-full?) (cdr xs))]))
+  
+    (let* ([rows-full (enumerate-tag 'row (map
+                                           (curry all? (compose not is-empty?))
+                                           (2darray->list board)))]
+           [my-list (foldl (lambda (row pair-list)
+                             (let ([i         (get-index row)]
+                                   [row-full? (get-value row)])
+                               (build-pair-list i row-full? pair-list)))
+                           '()
+                           rows-full)])
+      (let ([return (cond [(null? my-list) '()]
+                          [(is-full? (car my-list)) my-list]
+                          [else (cons ((car my-list) board-height #f)
+                                      (cdr my-list))])])
+        (begin (display my-list)
+               (display return)
+               (newline)
+               return))))
+            
+
+  (foldl
+   (lambda (index-pair state)
+     (let* ([current-board    (car state)]
+            [current-score    (cdr state)]
+            [i-min            (car  index-pair)]
+            [i-max            (cdr index-pair)]
+            [num-rows-cleared (- i-max i-min)])
+       (cons (clear-rows i-min i-max current-board)
+             (+ num-rows-cleared current-score))))
+   (cons board 0)
+   (full-rows board)))
+        
+         
+                  
+  
+
 ; game-state -> image
 (define (draw-game game-state)
   (let ([tetramino-in-play (first  game-state)]
@@ -464,8 +548,214 @@
                                  board))))
 
 
-(big-bang (make-game-state (get-tetramino (random-choice tetraminos)) ; initial state
-                           starting-loc
-                           empty-board)
-          (to-draw draw-game)    ; redraws the world
-          (on-key update-game))  ; process the event of key press
+(big-bang
+    (make-game-state (get-tetramino (random-choice tetraminos)) ; initial state
+                     starting-loc
+                     empty-board)
+  (to-draw draw-game)    ; redraws the world
+  (on-key update-game))  ; process the event of key press
+
+
+(define test-board
+  '(2darray
+   (Vector 20 . 10)
+   (((Vector 0 . 0) . Empty)
+    ((Vector 0 . 1) . Empty)
+    ((Vector 0 . 2) . Empty)
+    ((Vector 0 . 3) . Empty)
+    ((Vector 0 . 4) . Empty)
+    ((Vector 0 . 5) . Yellow)
+    ((Vector 0 . 6) . Yellow)
+    ((Vector 0 . 7) . Purple)
+    ((Vector 0 . 8) . Cyan)
+    ((Vector 0 . 9) . Blue))
+   (((Vector 1 . 0) . Blue)
+    ((Vector 1 . 1) . Empty)
+    ((Vector 1 . 2) . Empty)
+    ((Vector 1 . 3) . Cyan)
+    ((Vector 1 . 4) . Green)
+    ((Vector 1 . 5) . Yellow)
+    ((Vector 1 . 6) . Yellow)
+    ((Vector 1 . 7) . Red)
+    ((Vector 1 . 8) . Orange)
+    ((Vector 1 . 9) . Blue))
+   (((Vector 2 . 0) . Blue)
+    ((Vector 2 . 1) . Blue)
+    ((Vector 2 . 2) . Blue)
+    ((Vector 2 . 3) . Cyan)
+    ((Vector 2 . 4) . Empty)
+    ((Vector 2 . 5) . Red)
+    ((Vector 2 . 6) . Red)
+    ((Vector 2 . 7) . Empty)
+    ((Vector 2 . 8) . Blue)
+    ((Vector 2 . 9) . Blue))
+   (((Vector 3 . 0) . Purple)
+    ((Vector 3 . 1) . Purple)
+    ((Vector 3 . 2) . Purple)
+    ((Vector 3 . 3) . Cyan)
+    ((Vector 3 . 4) . Empty)
+    ((Vector 3 . 5) . Blue)
+    ((Vector 3 . 6) . Red)
+    ((Vector 3 . 7) . Red)
+    ((Vector 3 . 8) . Yellow)
+    ((Vector 3 . 9) . Yellow))
+   (((Vector 4 . 0) . Purple)
+    ((Vector 4 . 1) . Purple)
+    ((Vector 4 . 2) . Purple)
+    ((Vector 4 . 3) . Cyan)
+    ((Vector 4 . 4) . Orange)
+    ((Vector 4 . 5) . Blue)
+    ((Vector 4 . 6) . Blue)
+    ((Vector 4 . 7) . Blue)
+    ((Vector 4 . 8) . Yellow)
+    ((Vector 4 . 9) . Yellow))
+   (((Vector 5 . 0) . Purple)
+    ((Vector 5 . 1) . Purple)
+    ((Vector 5 . 2) . Purple)
+    ((Vector 5 . 3) . Purple)
+    ((Vector 5 . 4) . Orange)
+    ((Vector 5 . 5) . Cyan)
+    ((Vector 5 . 6) . Cyan)
+    ((Vector 5 . 7) . Cyan)
+    ((Vector 5 . 8) . Cyan)
+    ((Vector 5 . 9) . Blue))
+   (((Vector 6 . 0) . Purple)
+    ((Vector 6 . 1) . Purple)
+    ((Vector 6 . 2) . Purple)
+    ((Vector 6 . 3) . Green)
+    ((Vector 6 . 4) . Orange)
+    ((Vector 6 . 5) . Orange)
+    ((Vector 6 . 6) . Purple)
+    ((Vector 6 . 7) . Purple)
+    ((Vector 6 . 8) . Purple)
+    ((Vector 6 . 9) . Blue))
+   (((Vector 7 . 0) . Purple)
+    ((Vector 7 . 1) . Purple)
+    ((Vector 7 . 2) . Purple)
+    ((Vector 7 . 3) . Green)
+    ((Vector 7 . 4) . Green)
+    ((Vector 7 . 5) . Red)
+    ((Vector 7 . 6) . Red)
+    ((Vector 7 . 7) . Purple)
+    ((Vector 7 . 8) . Blue)
+    ((Vector 7 . 9) . Blue))
+   (((Vector 8 . 0) . Cyan)
+    ((Vector 8 . 1) . Cyan)
+    ((Vector 8 . 2) . Cyan)
+    ((Vector 8 . 3) . Cyan)
+    ((Vector 8 . 4) . Green)
+    ((Vector 8 . 5) . Purple)
+    ((Vector 8 . 6) . Red)
+    ((Vector 8 . 7) . Red)
+    ((Vector 8 . 8) . Yellow)
+    ((Vector 8 . 9) . Yellow))
+   (((Vector 9 . 0) . Blue)
+    ((Vector 9 . 1) . Blue)
+    ((Vector 9 . 2) . Blue)
+    ((Vector 9 . 3) . Blue)
+    ((Vector 9 . 4) . Purple)
+    ((Vector 9 . 5) . Purple)
+    ((Vector 9 . 6) . Purple)
+    ((Vector 9 . 7) . Green)
+    ((Vector 9 . 8) . Yellow)
+    ((Vector 9 . 9) . Yellow))
+   (((Vector 10 . 0) . Blue)
+    ((Vector 10 . 1) . Blue)
+    ((Vector 10 . 2) . Blue)
+    ((Vector 10 . 3) . Blue)
+    ((Vector 10 . 4) . Green)
+    ((Vector 10 . 5) . Orange)
+    ((Vector 10 . 6) . Orange)
+    ((Vector 10 . 7) . Green)
+    ((Vector 10 . 8) . Green)
+    ((Vector 10 . 9) . Blue))
+   (((Vector 11 . 0) . Purple)
+    ((Vector 11 . 1) . Purple)
+    ((Vector 11 . 2) . Purple)
+    ((Vector 11 . 3) . Green)
+    ((Vector 11 . 4) . Green)
+    ((Vector 11 . 5) . Green)
+    ((Vector 11 . 6) . Orange)
+    ((Vector 11 . 7) . Empty)
+    ((Vector 11 . 8) . Green)
+    ((Vector 11 . 9) . Blue))
+   (((Vector 12 . 0) . Orange)
+    ((Vector 12 . 1) . Purple)
+    ((Vector 12 . 2) . Green)
+    ((Vector 12 . 3) . Green)
+    ((Vector 12 . 4) . Green)
+    ((Vector 12 . 5) . Green)
+    ((Vector 12 . 6) . Orange)
+    ((Vector 12 . 7) . Empty)
+    ((Vector 12 . 8) . Blue)
+    ((Vector 12 . 9) . Blue))
+   (((Vector 13 . 0) . Orange)
+    ((Vector 13 . 1) . Empty)
+    ((Vector 13 . 2) . Green)
+    ((Vector 13 . 3) . Green)
+    ((Vector 13 . 4) . Green)
+    ((Vector 13 . 5) . Red)
+    ((Vector 13 . 6) . Empty)
+    ((Vector 13 . 7) . Empty)
+    ((Vector 13 . 8) . Yellow)
+    ((Vector 13 . 9) . Yellow))
+   (((Vector 14 . 0) . Orange)
+    ((Vector 14 . 1) . Orange)
+    ((Vector 14 . 2) . Green)
+    ((Vector 14 . 3) . Green)
+    ((Vector 14 . 4) . Red)
+    ((Vector 14 . 5) . Red)
+    ((Vector 14 . 6) . Empty)
+    ((Vector 14 . 7) . Purple)
+    ((Vector 14 . 8) . Yellow)
+    ((Vector 14 . 9) . Yellow))
+   (((Vector 15 . 0) . Empty)
+    ((Vector 15 . 1) . Purple)
+    ((Vector 15 . 2) . Green)
+    ((Vector 15 . 3) . Green)
+    ((Vector 15 . 4) . Red)
+    ((Vector 15 . 5) . Red)
+    ((Vector 15 . 6) . Empty)
+    ((Vector 15 . 7) . Purple)
+    ((Vector 15 . 8) . Purple)
+    ((Vector 15 . 9) . Purple))
+   (((Vector 16 . 0) . Purple)
+    ((Vector 16 . 1) . Purple)
+    ((Vector 16 . 2) . Purple)
+    ((Vector 16 . 3) . Green)
+    ((Vector 16 . 4) . Red)
+    ((Vector 16 . 5) . Red)
+    ((Vector 16 . 6) . Empty)
+    ((Vector 16 . 7) . Purple)
+    ((Vector 16 . 8) . Purple)
+    ((Vector 16 . 9) . Purple))
+   (((Vector 17 . 0) . Yellow)
+    ((Vector 17 . 1) . Yellow)
+    ((Vector 17 . 2) . Yellow)
+    ((Vector 17 . 3) . Yellow)
+    ((Vector 17 . 4) . Red)
+    ((Vector 17 . 5) . Red)
+    ((Vector 17 . 6) . Red)
+    ((Vector 17 . 7) . Red)
+    ((Vector 17 . 8) . Red)
+    ((Vector 17 . 9) . Purple))
+   (((Vector 18 . 0) . Yellow)
+    ((Vector 18 . 1) . Yellow)
+    ((Vector 18 . 2) . Yellow)
+    ((Vector 18 . 3) . Yellow)
+    ((Vector 18 . 4) . Yellow)
+    ((Vector 18 . 5) . Yellow)
+    ((Vector 18 . 6) . Red)
+    ((Vector 18 . 7) . Red)
+    ((Vector 18 . 8) . Red)
+    ((Vector 18 . 9) . Red))
+   (((Vector 19 . 0) . Cyan)
+    ((Vector 19 . 1) . Cyan)
+    ((Vector 19 . 2) . Cyan)
+    ((Vector 19 . 3) . Cyan)
+    ((Vector 19 . 4) . Yellow)
+    ((Vector 19 . 5) . Yellow)
+    ((Vector 19 . 6) . Cyan)
+    ((Vector 19 . 7) . Cyan)
+    ((Vector 19 . 8) . Cyan)
+    ((Vector 19 . 9) . Cyan))))
