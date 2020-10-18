@@ -7,6 +7,8 @@
 (require "board.rkt")
 (require "sound-effects.rkt")
 
+(define starting-loc (make-vector 0 3))
+
 ; game-state -> keypress -> game-state
 (define (update-game game-state player-move)
   ; updates the game-state when a key is pressed
@@ -71,7 +73,7 @@
 (big-bang
   ; initial state
   (make-game-state (get-random-tetramino)
-                   (make-vector 0 3)
+                   starting-loc
                    empty-board)
   ; redraws the world
   (to-draw draw-game)    

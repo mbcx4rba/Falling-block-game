@@ -66,21 +66,29 @@
                                                  (X X)))))
   
   (define L (make-tetramino 'Orange (bool-mask '((_ _ X)
-                                                 (X X X)))))
+                                                 (X X X)
+                                                 (_ _ _)))))
   
-  (define J (make-tetramino 'Blue   (bool-mask '((X X X)
+  (define J (make-tetramino 'Blue   (bool-mask '((_ _ _)
+                                                 (X X X)
                                                  (_ _ X)))))
   
   (define S (make-tetramino 'Green  (bool-mask '((_ X X)
-                                                 (X X _)))))
+                                                 (X X _)
+                                                 (_ _ _)))))
 
   (define Z (make-tetramino 'Red    (bool-mask '((X X _)
-                                                 (_ X X)))))
+                                                 (_ X X)
+                                                 (_ _ _)))))
   
-  (define T (make-tetramino 'Purple (bool-mask '((X X X)
+  (define T (make-tetramino 'Purple (bool-mask '((_ _ _)
+                                                 (X X X)
                                                  (_ X _)))))
   
-  (define I (make-tetramino 'Cyan   (bool-mask '((X X X X)))))
+  (define I (make-tetramino 'Cyan   (bool-mask '((_ _ _ _)
+                                                 (X X X X)
+                                                 (_ _ _ _)
+                                                 (_ _ _ _)))))
   
   (cond ((eq? name 'O) O)   ; square
         ((eq? name 'L) L)   ; L

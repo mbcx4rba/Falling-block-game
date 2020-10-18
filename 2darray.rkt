@@ -9,6 +9,7 @@
          is-2darray?
          fold-2d
          map-2d
+         andmap-2d
          enum-2d
          get-enum-2d-value
          get-enum-2d-index
@@ -93,6 +94,11 @@
   ; map-2d maps a function across a 2darray
   (let ([as-list   (2darray->list 2darray)])
     (list->2darray (map (curry map fn) as-list))))
+
+; 2darray -> bool
+(define (andmap-2d fn 2darray)
+  (let ([as-list   (2darray->list 2darray)])
+    (andmap (curry andmap fn) as-list)))
 
 ; fold-2d folds a 2darray
 (define (fold-2d proc init 2darray)

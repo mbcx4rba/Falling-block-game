@@ -101,28 +101,27 @@
          [tetra-min-x  (get-x loc)]
          [tetra-min-y  (get-y loc)]
          [tetra-max-x  (+ tetra-min-x tetra-width)]
-         [tetra-max-y  (+ tetra-min-y tetra-height)]
-         [board-dims   (get-dimensions board)]
-         [board-height (get-y board-dims)]
-         [board-width  (get-x board-dims)]
-         [in-floor?    (or (< tetra-min-y 0)
-                           (> tetra-max-y board-height))]
-         [in-walls?    (or (< tetra-min-x 0)
-                           (> tetra-max-x board-width))]
-         [overlaps-non-empty?
-            (and (not in-floor?)
-                 (not in-walls?)
-                 (fold-2d (lambda (x y) (and x y)) ; should use andmap
-                          #t
-                          (map-2d (lambda (cell)
-                                    (let (; check whether the tetramino actually occupies this cell
-                                          [occupied? (get-enum-2d-value cell)]
-                                          ; and get the location of the cell on the board
-                                          [cell-loc (add-vector loc (get-enum-2d-index cell))])
-                                      (or (not occupied?)
-                                          (is-empty? (2darray-vector-ref board cell-loc)))))
-                          (enum-2d (get-mask tetramino)))))])
-           overlaps-non-empty?))
+         [tetra-max-y  (+ tetra-min-y tetra-height)])
+    
+    (andmap-2d (lambda (cell)
+                 (let ([occupied? (get-enum-2d-value cell)])
+                   (or (not occupied?)
+                       (let* ([cell-loc (add-vector loc (get-enum-2d-index cell))]
+                              [cell-x   (get-x cell-loc)]
+                              [cell-y   (get-y cell-loc)])
+
+                         ; we have to check if the cell is on the board first, or else
+                         ; there will be an error when we try to check what is the contents
+                         ; of a cell outside the bounds of the board
+                         (and (>= cell-x 0)
+                              (< cell-x board-height) ; check if in floor
+                              (>= cell-y 0)            ; check if in walls
+                              (< cell-y board-width)
+                              ; check if there is already a square in this cell on the board
+                              (is-empty? (2darray-ref board cell-x cell-y)))))))
+               ; Doesn't really make much sense to run enum-2d every tick. - extra overhead.
+               ; Include the enumeration in the representation of the tetramino mask
+               (enum-2d (get-mask tetramino)))))
 
 ; board -> image
 (define (board->image board)
