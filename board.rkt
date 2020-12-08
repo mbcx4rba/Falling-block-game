@@ -172,9 +172,6 @@
     ; with the indices of the first and last rows in a block of
     ; filled rows
     (define is-full? pair?)
-    
-
-    
     (define (build-pair-list index row-full? xs)
       (define (partial-pair second-index this-row-full?)
         (if this-row-full?
