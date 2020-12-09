@@ -89,8 +89,8 @@
             board)))
 
 
-; tetramino -> (Int,Int) -> board -> Bool
-(define (can-move-to? tetramino loc board)
+; tetramino -> board -> (Int,Int) -> Bool
+(define (can-move-to? tetramino board loc)
   ; Returns false if a tetramino collides with either
   ;    1. Another tetramino
   ;    2. The "floor" of the board
